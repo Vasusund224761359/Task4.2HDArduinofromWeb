@@ -2,37 +2,73 @@
 #include <WiFiSSLClient.h>
 #include <ArduinoHttpClient.h>
 
-// WiFi credentials
-char ssid[] = "VX220-83A5";         
-char pass[] = "3242C3D2040A0";     
+// WiFi 
+char ssid[] = "VX220-83A5";
+char pass[] = "3242C3D2040A0";
 
-
+// Firebase 
 char server[] = "trafficlight-control-default-rtdb.firebaseio.com";
-int port = 443; 
+int port = 443;
+String commandPath = "/command.json";
 
-
-String bluePath = "/leds/blue.json";
-String greenPath = "/leds/green.json";
-String redPath = "/leds/red.json";
-
-
+// LED pins (blue, green, red)
 int bluePin = 2;
 int greenPin = 3;
 int redPin = 4;
 
-
 WiFiSSLClient wifi;
 HttpClient client = HttpClient(wifi, server, port);
+
+// Callback 
+typedef void (*CommandCallback)(String);
+
+// Callback function
+void handleCommand(String command) {
+  if (command == "blue") {
+    digitalWrite(bluePin, !digitalRead(bluePin));
+    Serial.println("Toggled BLUE");
+  } else if (command == "green") {
+    digitalWrite(greenPin, !digitalRead(greenPin));
+    Serial.println("Toggled GREEN");
+  } else if (command == "red") {
+    digitalWrite(redPin, !digitalRead(redPin));
+    Serial.println("Toggled RED");
+  } else {
+    Serial.println("Unknown command");
+  }
+
+  // Reset Firebase command to "none"
+  client.beginRequest();
+  client.put(commandPath);
+  client.sendHeader("Content-Type", "application/json");
+  client.sendHeader("Content-Length", 6); // "none"
+  client.beginBody();
+  client.print("\"none\"");
+  client.endRequest();
+}
+
+// Function to check Firebase and callback
+void checkFirebase(CommandCallback callback) {
+  client.get(commandPath);
+  int statusCode = client.responseStatusCode();
+  String command = client.responseBody();
+  command.trim();
+  command.replace("\"", "");
+
+  if (statusCode == 200 && command != "none") {
+    Serial.print("Command received: ");
+    Serial.println(command);
+    callback(command);  // <<== CALLBACK IS USED HERE
+  }
+}
 
 void setup() {
   Serial.begin(9600);
 
-  // Set LED pins as OUTPUT
   pinMode(bluePin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   pinMode(redPin, OUTPUT);
 
-  // Connect to WiFi
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
     Serial.println("Connecting to WiFi...");
@@ -40,36 +76,9 @@ void setup() {
   }
 
   Serial.println("Connected to WiFi!");
-  Serial.println(WiFi.localIP());
 }
 
 void loop() {
-  checkAndSetLED(bluePath, bluePin);
-  checkAndSetLED(greenPath, greenPin);
-  checkAndSetLED(redPath, redPin);
-  delay(1000);  
-}
-
-void checkAndSetLED(String path, int pin) {
-  client.get(path);
-  int statusCode = client.responseStatusCode();
-  String response = client.responseBody();
-  response.trim();
-
-  Serial.print("GET ");
-  Serial.println(path);
-  Serial.print("Status: ");
-  Serial.println(statusCode);
-  Serial.print("Response: ");
-  Serial.println(response);
-
-  if (statusCode == 200) {
-    if (response == "true") {
-      digitalWrite(pin, HIGH);
-    } else {
-      digitalWrite(pin, LOW);
-    }
-  } else {
-    Serial.println("Failed to get data from Firebase");
-  }
+  checkFirebase(handleCommand); // This will be used to Pass the callback function
+  delay(1000);
 }
