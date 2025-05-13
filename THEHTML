@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LED Control</title>
+</head>
+<body>
+  <h2>LED Control</h2>
+
+  <label>
+    <input type="checkbox" onclick="toggleLED('red', this.checked)">
+    Red LED
+  </label><br>
+
+  <label>
+    <input type="checkbox" onclick="toggleLED('green', this.checked)">
+    Green LED
+  </label><br>
+
+  <label>
+    <input type="checkbox" onclick="toggleLED('blue', this.checked)">
+    Blue LED
+  </label><br>
+
+  <script>
+    function toggleLED(color, state) {
+      fetch(`https://trafficlight-control-default-rtdb.firebaseio.com/leds/${color}.json`, {
+        method: 'PUT',
+        body: state ? 'true' : 'false'
+      });
+    }
+  </script>
+</body>
+</html>
